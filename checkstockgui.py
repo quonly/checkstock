@@ -4,72 +4,78 @@ from tkinter import filedialog,ttk
 import random
 from openpyxl import load_workbook,Workbook
 
-export = []
 
-def openexcel():
-    global max_row,sheet
-    file_path = filedialog.askopenfilename()
-    if file_path:
-        result_openfile.configure(text=f'เปิดไฟล์: {file_path}')
-    file = load_workbook(file_path)
-    sheet = file.worksheets[0]
-    max_row = sheet.max_row
+class File:
+    export_items = [['SKU','ONHAND','OUTGOING','BALANCE']]
+    file_path = None
+    max_row = 0
+    sheet = None
+    col_sku = None
+    col_onhand = None
+    col_out_going = None
+    crr_d = datetime.now()
+    ran = random.randrange(1,100000)
+    
+    day = crr_d.day
+    month = crr_d.month
+    year = crr_d.year
+    yearMonthDay = f'{year}-{month}-{day}'
+    
+    def filePath(self):
+        self.file_path = filedialog.askopenfilename()
+        result_openfile.configure(text=f'เปิดไฟล์: {self.file_path}')
+        self.openFile()
 
-def exportexcel():
-    if len(export) > 0:
-        crr_d = datetime.now()
-        day = crr_d.day
-        month = crr_d.month
-        year = crr_d.year
-        yearMonthDay = f'{year}-{month}-{day}'
-        excel = Workbook()
-        ran = random.randrange(1,1000)
-        excel_name = f"stock-export{yearMonthDay}{ran}.xlsx"
-        excel.save(excel_name)
-        work_sheet = excel.worksheets[0]
-        work_sheet.title = 'สินค้าคงคลัง'
-        header = ['SKU','ONHAND','OUTGOING','BALANCE']
-        r = 2
-        for items in export:
-            for i in range(4):
-                if (r-1) == 1:
-                    work_sheet.cell(row=1, column=i+1).value = header[i]
-                    work_sheet.cell(row=r, column=i+1).value = items[i]
-                else:
-                    work_sheet.cell(row=r, column=i+1).value = items[i]
-            r += 1
-        excel.save(excel_name)  
-        result_label.configure(text=f'Export สำเร็จ: {excel_name}')
-    else:result_label.configure(text=f'ไม่พบข้อมูลที่สามารถ export ได้')
-
-def search_sku():
-    try:
-        col_onhand = int(onhand_entry.get())
-        col_outgoing = int(outgoing_entry.get())
-        col_sku = int(col_sku_entry.get())
-    except ValueError:
-        result_label.configure(text=f'คอลัมน์ไม่ถูกต้อง')
-    search = sku_entry.get()
-    s_sku = search.lower().replace('#','')
-    is_found = False
-    for num_row in range(max_row):
-        row = num_row + 1
-        sku = str(sheet.cell(row=row, column=col_sku).value).lower().replace('#','')
-        if s_sku == sku:
-            onhand = int(sheet.cell(row=row, column=col_onhand).value) or 0
-            outgoing = int(sheet.cell(row=row, column=col_outgoing).value) or 0
-            result = onhand - outgoing
-            result_label.configure(text=f'{s_sku.upper()} สินค้าคงเหลือ: {result}')
-            items = [s_sku.upper(), onhand, outgoing, result]
-            if items not in export:
-                export.append(items)
-            is_found = True
-            break
-    if not is_found:
-        result_label.configure(text=f'ไม่พบสินค้า: {s_sku}')
+    def openFile(self):
+        file = load_workbook(self.file_path)
+        self.sheet = file.worksheets[0]
+        self.max_row = self.sheet.max_row
+    
+    def setCol(self,col_sku,col_onhand,col_out_going):
+        try:
+            self.col_onhand = int(col_onhand)
+            self.col_out_going = int(col_out_going)
+            self.col_sku = int(col_sku)
+        except ValueError:
+            result_label.configure(text=f'คอลัมน์ไม่ถูกต้อง')
         
-def get_sku_and_search(eent=None):
-    search_sku()
+    def exportFile(self,filename=f"stock-export{yearMonthDay}{ran}.xlsx",r=1):
+        if len(self.export_items) > 1:
+            excel = Workbook()
+            excel.save(filename)
+            work_sheet = excel.worksheets[0]
+            r=1
+            for item in self.export_items:
+                for i in range(4):
+                    work_sheet.cell(row=r, column=i+1).value = item[i]
+                r += 1
+            excel.save(filename)  
+            result_label.configure(text=f'Export สำเร็จ: {filename}')
+        else:result_label.configure(text=f'ไม่พบข้อมูลที่สามารถ export ได้')
+class CheckStock(File):
+    def search_kw(self,kw):
+        self.kw = kw  
+        return self.kw
+    def stock(self,event=None):
+        self.setCol(col_sku_entry.get(),onhand_entry.get(),outgoing_entry.get())
+        search = self.search_kw(sku_entry.get())
+        s_sku = search.lower().replace('#','')
+        is_found = False
+        for row in range(self.max_row):
+            row+=1
+            sku = str(self.sheet.cell(row=row, column=self.col_sku).value).lower().replace('#','')
+            if s_sku == sku:
+                onhand = int(self.sheet.cell(row=row, column=self.col_onhand).value) or 0
+                outgoing = int(self.sheet.cell(row=row, column=self.col_out_going).value) or 0
+                result = onhand - outgoing
+                result_label.configure(text=f'{s_sku.upper()} สินค้าคงเหลือ: {result}')
+                items = [s_sku.upper(), onhand, outgoing, result]
+                if items not in self.export_items:
+                    self.export_items.append(items)
+                is_found = True
+                break
+        if not is_found:
+            result_label.configure(text=f'ไม่พบสินค้า: {s_sku}')    
 
 root = tk.Tk()
 root.geometry('600x800')
@@ -84,14 +90,15 @@ howto = tk.Label(root,textvariable=howto_text,justify='left',pady=20,height=8)
 howto.pack()
 
 
+
 button_frame = ttk.Frame(root)
 button_frame.pack(pady=10)
 
-
-openfile_button = ttk.Button(button_frame, text='Open file', command=openexcel)
+f = CheckStock()
+openfile_button = ttk.Button(button_frame, text='Open file', command=f.filePath)
 openfile_button.pack(side='left')
 
-export_button = ttk.Button(button_frame, text='Export file', command=exportexcel)
+export_button = ttk.Button(button_frame, text='Export file', command=f.exportFile)
 export_button.pack(side='left',padx=10)
 
 result_openfile = tk.Label(root, text='', width=50, height=2)
@@ -120,9 +127,9 @@ sku_label.pack(pady=5)
 sku_entry = ttk.Entry(root)
 sku_entry.pack()
 
-search_button = ttk.Button(root, text='Search', command=search_sku)
+search_button = ttk.Button(root, text='Search', command=f.stock)
 search_button.pack(pady=10)
-sku_entry.bind('<Return>',get_sku_and_search)
+sku_entry.bind('<Return>',f.stock)
 
 result_label = tk.Label(root, text='', width=50, height=2)
 result_label.pack(pady=20,ipady=10)
